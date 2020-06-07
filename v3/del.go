@@ -3,7 +3,7 @@ package ldap
 import (
 	"log"
 
-	ber "github.com/go-asn1-ber/asn1-ber"
+	ber "github.com/ropnop/asn1-ber"
 )
 
 // DelRequest implements an LDAP deletion request
