@@ -6,10 +6,11 @@ import (
 	enchex "encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/Azure/go-ntlmssp"
 	"io/ioutil"
 	"math/rand"
 	"strings"
+
+	"github.com/ropnop/go-ntlmssp"
 
 	ber "github.com/ropnop/asn1-ber"
 )
@@ -395,6 +396,7 @@ type NTLMBindRequest struct {
 	Domain   string
 	Username string
 	Password string
+	NTLMHash string
 	Controls []Control
 }
 
@@ -430,8 +432,18 @@ func (l *Conn) NTLMBind(domain, username, password string) error {
 	return err
 }
 
+func (l *Conn) NTLMBindWithHash(domain, username, hash string) error {
+	req := &NTLMBindRequest{
+		Domain:   domain,
+		Username: username,
+		NTLMHash: hash,
+	}
+	_, err := l.NTLMChallengeBind(req)
+	return err
+}
+
 func (l *Conn) NTLMChallengeBind(ntlmBindRequest *NTLMBindRequest) (*NTLMBindResult, error) {
-	if ntlmBindRequest.Password == "" {
+	if ntlmBindRequest.Password == "" && ntlmBindRequest.NTLMHash == "" {
 		return nil, NewError(ErrorEmptyPassword, errors.New("ldap: empty password not allowed by the client"))
 	}
 
@@ -468,7 +480,13 @@ func (l *Conn) NTLMChallengeBind(ntlmBindRequest *NTLMBindRequest) (*NTLMBindRes
 		}
 	}
 	if ntlmsspChallenge != nil {
-		responseMessage, err := ntlmssp.ProcessChallenge(ntlmsspChallenge, ntlmBindRequest.Username, ntlmBindRequest.Password)
+		var responseMessage []byte
+		var err error
+		if ntlmBindRequest.NTLMHash != "" {
+			responseMessage, err = ntlmssp.ProcessChallengeWithHash(ntlmsspChallenge, ntlmBindRequest.Username, ntlmBindRequest.NTLMHash)
+		} else {
+			responseMessage, err = ntlmssp.ProcessChallenge(ntlmsspChallenge, ntlmBindRequest.Username, ntlmBindRequest.Password)
+		}
 		if err != nil {
 			return result, fmt.Errorf("parsing ntlm-challenge: %s", err)
 		}
